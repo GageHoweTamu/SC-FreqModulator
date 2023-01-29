@@ -1,0 +1,70 @@
+#include "FrequencyModulation.h"
+#include "pluginterfaces/base/ibstream.h"
+#include "pluginterfaces/base/ustring.h"
+#include "pluginterfaces/vst/ivstparameterchanges.h"
+#include "pluginterfaces/vst/ivstevents.h"
+
+using namespace Steinberg;
+using namespace Steinberg::Vst;
+
+FrequencyModulation::FrequencyModulation()
+{
+    // initialize parameter values
+    parameters.addParameter(new ScaledParameter(STR16("Modulation Depth"), 0, 100, 0, 0.01f));
+}
+
+tresult PLUGIN_API FrequencyModulation::process(ProcessData& data)
+{
+    // check if there are any parameter changes in the input event list
+    if (data.inputParameterChanges)
+    {
+        int32 numParamsChanged = data.inputParameterChanges->getParameterCount();
+        for (int32 i = 0; i < numParamsChanged; i++)
+        {
+            IParamValueQueue* paramQueue = data.inputParameterChanges->getParameterData(i);
+            if (paramQueue)
+            {
+                ParamValue value;
+                int32 sampleOffset;
+                int32 numPoints = paramQueue->getPointCount();
+                switch (paramQueue->getParameterId())
+                {
+                    case kModulationDepthId:
+                        if (paramQueue->getPoint(numPoints - 1, sampleOffset, value) == kResultTrue)
+                        {
+                            modulationDepth = value;
+                        }
+                        break;
+                    // handle other parameters here
+                }
+            }
+        }
+    }
+
+    // check if there is input audio
+    if (data.numInputs == 0 || data.numOutputs == 0)
+    {
+        return kResultFalse;
+    }
+
+    // get audio buffers
+    float* inputBuffer = data.inputs[0].channelBuffers32[0];
+    float* sidechainBuffer = data.inputs[1].channelBuffers32[0];
+    float* outputBuffer = data.outputs[0].channelBuffers32[0];
+
+    // process audio buffer
+    for (int32 i = 0; i < data.numSamples; i++)
+    {
+        // perform frequency modulation using the sidechain input
+        outputBuffer[i] = inputBuffer[i] * (1.0f + (sidechainBuffer[i] * modulationDepth));
+    }
+
+    return kResultTrue;
+}
+This is a basic example, you may need to add more functionality, such as handling different channel counts, processing multiple input/output buffers, and handling different sample rates. Also, you need to adjust the code to use the specific VST SDK you are using.
+
+I strongly recommend you to study the documentation of the VST SDK you are using and also study existing open source vst plugins for more detailed guidance and to avoid common pitfalls.
+
+
+
+
