@@ -1,5 +1,5 @@
 # SC-FreqModulator
-Frequency modulates a signal with its sidechain input
+Future project: frequency modulates a signal with its sidechain input
 
 ChatGPT's comments:
 
