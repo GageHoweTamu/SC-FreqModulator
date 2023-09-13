@@ -1,70 +1,129 @@
-#include "FrequencyModulation.h"
-#include "pluginterfaces/base/ibstream.h"
-#include "pluginterfaces/base/ustring.h"
-#include "pluginterfaces/vst/ivstparameterchanges.h"
-#include "pluginterfaces/vst/ivstevents.h"
+#include <JuceHeader.h>
 
-using namespace Steinberg;
-using namespace Steinberg::Vst;
-
-FrequencyModulation::FrequencyModulation()
+class PhaseModulationPlugin : public juce::AudioProcessor
 {
-    // initialize parameter values
-    parameters.addParameter(new ScaledParameter(STR16("Modulation Depth"), 0, 100, 0, 0.01f));
-}
-
-tresult PLUGIN_API FrequencyModulation::process(ProcessData& data)
-{
-    // check if there are any parameter changes in the input event list
-    if (data.inputParameterChanges)
+public:
+    PhaseModulationPlugin()
     {
-        int32 numParamsChanged = data.inputParameterChanges->getParameterCount();
-        for (int32 i = 0; i < numParamsChanged; i++)
+        // Set up the parameters for the plugin
+        addParameter(phaseModulationAmount = new juce::AudioParameterFloat("phaseModulationAmount", "Phase Modulation Amount", 0.0f, 1.0f, 0.5f));
+    }
+
+    void prepareToPlay(double sampleRate, int samplesPerBlock) override
+    {
+        // Set up the audio processing objects
+        phaseModulationBuffer.setSize(1, samplesPerBlock);
+    }
+
+    void releaseResources() override
+    {
+        // Release the audio processing objects
+        phaseModulationBuffer.setSize(0, 0);
+    }
+
+    void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) override
+    {
+        // Get the sidechain buffer
+        const float* sidechainBuffer = sidechain.getReadPointer(0);
+
+        // Get the audio buffer
+        float* audioBuffer = buffer.getWritePointer(0);
+
+        // Process each sample in the buffer
+        for (int i = 0; i < buffer.getNumSamples(); ++i)
         {
-            IParamValueQueue* paramQueue = data.inputParameterChanges->getParameterData(i);
-            if (paramQueue)
-            {
-                ParamValue value;
-                int32 sampleOffset;
-                int32 numPoints = paramQueue->getPointCount();
-                switch (paramQueue->getParameterId())
-                {
-                    case kModulationDepthId:
-                        if (paramQueue->getPoint(numPoints - 1, sampleOffset, value) == kResultTrue)
-                        {
-                            modulationDepth = value;
-                        }
-                        break;
-                    // handle other parameters here
-                }
-            }
+            // Calculate the phase modulation amount
+            float phaseModulation = *phaseModulationAmount * sidechainBuffer[i];
+
+            // Calculate the phase modulation buffer
+            phaseModulationBuffer.setSample(0, i, std::sin(phaseModulation));
+
+            // Apply the phase modulation to the audio sample
+            audioBuffer[i] *= phaseModulationBuffer.getSample(0, i);
         }
     }
 
-    // check if there is input audio
-    if (data.numInputs == 0 || data.numOutputs == 0)
+    juce::AudioProcessorEditor* createEditor() override
     {
-        return kResultFalse;
+        // Create a default editor
+        return new juce::GenericAudioProcessorEditor(*this);
     }
 
-    // get audio buffers
-    float* inputBuffer = data.inputs[0].channelBuffers32[0];
-    float* sidechainBuffer = data.inputs[1].channelBuffers32[0];
-    float* outputBuffer = data.outputs[0].channelBuffers32[0];
-
-    // process audio buffer
-    for (int32 i = 0; i < data.numSamples; i++)
+    bool hasEditor() const override
     {
-        // perform frequency modulation using the sidechain input
-        outputBuffer[i] = inputBuffer[i] * (1.0f + (sidechainBuffer[i] * modulationDepth));
+        // The plugin has an editor
+        return true;
     }
 
-    return kResultTrue;
+    const juce::String getName() const override
+    {
+        // Return the name of the plugin
+        return "Phase Modulation Plugin";
+    }
+
+    bool acceptsMidi() const override
+    {
+        // The plugin does not accept MIDI input
+        return false;
+    }
+
+    bool producesMidi() const override
+    {
+        // The plugin does not produce MIDI output
+        return false;
+    }
+
+    double getTailLengthSeconds() const override
+    {
+        // The plugin has no tail
+        return 0.0;
+    }
+
+    int getNumPrograms() override
+    {
+        // The plugin has one program
+        return 1;
+    }
+
+    int getCurrentProgram() override
+    {
+        // The plugin is always on the first program
+        return 0;
+    }
+
+    void setCurrentProgram(int index) override
+    {
+        // The plugin only has one program
+    }
+
+    const juce::String getProgramName(int index) override
+    {
+        // The plugin only has one program
+        return "Default";
+    }
+
+    void changeProgramName(int index, const juce::String& newName) override
+    {
+        // The plugin only has one program
+    }
+
+    void getStateInformation(juce::MemoryBlock& destData) override
+    {
+        // The plugin has no state information
+    }
+
+    void setStateInformation(const void* data, int sizeInBytes) override
+    {
+        // The plugin has no state information
+    }
+
+private:
+    juce::AudioParameterFloat* phaseModulationAmount;
+    juce::AudioBuffer<float> phaseModulationBuffer{ 1, 1 };
+    juce::AudioBuffer<float> sidechain{ 1, 1 };
+};
+
+juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
+{
+    return new PhaseModulationPlugin();
 }
-This is a basic example, you may need to add more functionality, such as handling different channel counts, processing multiple input/output buffers, and handling different sample rates. Also, you need to adjust the code to use the specific VST SDK you are using.
-
-I strongly recommend you to study the documentation of the VST SDK you are using and also study existing open source vst plugins for more detailed guidance and to avoid common pitfalls.
-
-
-
-
